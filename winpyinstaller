@@ -1,0 +1,82 @@
+#!/bin/sh
+
+me=`basename "$0"`|| me="$0"
+default_docker_image=winpyinstaller:latest
+
+docker_image=${DOCKER_IMAGE:-${default_docker_image}}
+change_dir=''
+user="${USER:-$LOGNAME}"
+
+usage()
+{
+  echo "Usage: $me [options] [pyinstaller_options] script_name"
+  echo "Options:"
+  echo "  -C <dir>     change to directory <dir> for building"
+  echo "  -I <image>   use docker <image> instead of ${default_docker_image}"
+  #echo "  -o <outfile> set outfile name (for one-file option)"
+  #echo "  -O <outdir>  put generated data in <outdir>"
+  echo ""
+  echo "All other options are passed to started pyinstaller instance"
+  echo "Use -- to pass any of options after to pyinstaller."
+}
+
+
+get_arg()
+{
+  if [ "$#" -lt 2 ]; then
+    echo "Error: Option $1 requires argument" 1>&2
+    return 1
+  else
+    case "$2" in 
+      -[0-9])
+        echo "$2"
+        ;;
+      -*)
+        echo "Error: Option $1 requires argument" 1>&2
+        return 1
+        ;;
+    esac
+  fi
+}
+
+
+while [ "$#" -gt 0 ]; do
+
+  case "$1" in
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    -C|--cd|--chdir)
+      change_dir=`get_arg "$@"` || exit 1
+      shift; shift
+      ;;
+    -I|--image|--docker-image)
+      docker_image=`get_arg "$@"` || exit 1
+      shift; shift
+      ;;
+    --)
+      shift
+      break
+      ;;
+    *)
+      break
+      ;;
+  esac
+
+done
+
+
+if [ -n "$change_dir" ]; then
+  SOURCE_PATH=`cd "$change_dir" && pwd` || exit 1
+
+else
+  SOURCE_PATH=`pwd`
+
+fi
+
+
+echo "Running pyinstaller in docker ${docker_image}" 1>&2
+echo "Args: --rm=true -it -v '$SOURCE_PATH:/src'" 1>&2
+
+docker run --rm=true -it -v "$SOURCE_PATH:/src" "${docker_image}" "$@"
